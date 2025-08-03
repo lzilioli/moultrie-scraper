@@ -198,8 +198,9 @@ async function downloadRecentImages() {
       return { filename, timestamp: match ? match[1] : 'none', dateTime: img.dateTimeText };
     }));
     
-    const imagesToDownload = sortedImages.slice(0, 5); // Get the 5 newest images
-    console.log(`Preparing to download ${imagesToDownload.length} images`);
+    const maxImages = parseInt(process.env.MOULTRIE_MAX_IMAGES) || 5;
+    const imagesToDownload = sortedImages.slice(0, maxImages); // Get the newest images
+    console.log(`Preparing to download ${imagesToDownload.length} images (max: ${maxImages})`);
 
     for (const imageData of imagesToDownload) {
       const { imageUrl, dateTimeText } = imageData;

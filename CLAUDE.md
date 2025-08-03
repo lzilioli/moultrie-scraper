@@ -17,6 +17,7 @@ The project requires a `.env` file with the following variables:
 - `MOULTRIE_PASSWORD` - Moultrie Mobile account password  
 - `PUSHCUT_API_KEY` - API key for Pushcut service
 - `MOULTRIE_LATEST_IMAGE_NAME` - Image filename for Pushcut upload (defaults to "MoultrieLatest.jpeg")
+- `MOULTRIE_MAX_IMAGES` - Maximum number of images to download per session (defaults to 5)
 - `DEBUG` - Set to `moultrie:scraper` for debug logging
 - `MOULTRIE_HEADLESS_OFF` - Set to disable headless mode for debugging
 - `PORT` - Server port (defaults to 3000)

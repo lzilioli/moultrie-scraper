@@ -5,7 +5,7 @@ A Node.js application that automatically downloads images from Moultrie Mobile t
 ## Features
 
 - **Automated Scraping**: Uses Puppeteer to log into Moultrie Mobile and download recent images
-- **Image Management**: Downloads and organizes the 5 most recent trail camera images
+- **Image Management**: Downloads recent trail camera images and stores them locally (configurable number, defaults to 5 most recent)
 - **Pushcut Integration**: Uploads the latest image to Pushcut API for use in iOS widgets
 - **Express Server**: Provides HTTP endpoint to serve the latest image
 - **Scheduled Execution**: Can be configured to run automatically via macOS LaunchAgent
@@ -49,6 +49,7 @@ Copy `.env.sample` to `.env` and configure the following:
 | `MOULTRIE_PASSWORD` | Your Moultrie Mobile account password | Yes |
 | `PUSHCUT_API_KEY` | Your Pushcut API key from [pushcut.io/account](https://pushcut.io/account) | Yes |
 | `MOULTRIE_LATEST_IMAGE_NAME` | Image filename for Pushcut upload (default: `MoultrieLatest.jpeg`) | No |
+| `MOULTRIE_MAX_IMAGES` | Maximum number of images to download per session (default: `5`) | No |
 | `PORT` | Express server port (default: `3000`) | No |
 | `DEBUG` | Set to `moultrie:scraper` for debug logging | No |
 | `MOULTRIE_HEADLESS_OFF` | Set to `1` to disable headless mode for debugging | No |
@@ -220,6 +221,8 @@ For automated execution on macOS, set up a LaunchAgent:
 When running the Express server:
 
 - `GET /latest-image` - Returns the most recent downloaded image as JPEG
+- `GET /refresh` - Downloads latest images from Moultrie Mobile
+- `GET /refresh?pushcut=true` - Downloads latest images and uploads the newest to Pushcut
 
 ## File Structure
 
@@ -254,12 +257,19 @@ moultrie-scraper/
 
 ## Troubleshooting
 
+**Image Storage:**
+- Images are stored in the `recent images/` folder with timestamp filenames (`YYYY-MM-DD@HH:MM:SS.jpg`)
+- The scraper only downloads images that don't already exist locally
+- All downloaded images are kept indefinitely (not just the most recent ones)
+- Use `MOULTRIE_MAX_IMAGES` environment variable to control how many images to download per session
+
 **Common Issues:**
 
 1. **Login fails**: Check your Moultrie Mobile credentials in `.env`
 2. **Images not uploading**: Verify your Pushcut API key and image name configuration
 3. **LaunchAgent not running**: Check the log files specified in your plist
 4. **No images found**: Ensure your trail camera has recent images on Moultrie Mobile
+5. **Want to download more images**: Increase the `MOULTRIE_MAX_IMAGES` value (e.g., set to 50 or 100 for backlog download)
 
 **Debug Steps:**
 
