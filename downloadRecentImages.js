@@ -86,6 +86,87 @@ async function downloadRecentImages() {
     debug('Waiting for image items to load');
     await page.waitForSelector('.image-item', { visible: true, timeout: 10000 });
     
+    // CRITICAL: Add a fixed timeout to let the images fully populate their src attributes
+    // This prevents the race condition where we sometimes get placeholder SVGs
+    debug('Waiting for images to fully populate (avoiding race condition)');
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for images to load
+    debug('Image population wait complete');
+    
+    const maxImages = parseInt(process.env.MOULTRIE_MAX_IMAGES) || 5;
+    
+    // If requesting many images, scroll to trigger infinite scroll loading
+    if (maxImages > 10) {
+      debug('Large number of images requested (%d), scrolling to collect as many as possible', maxImages);
+      
+      let previousCount = 0;
+      let currentCount = 0;
+      let scrollAttempts = 0;
+      const maxScrollAttempts = Math.max(20, Math.ceil(maxImages / 20)); // More scroll attempts for larger requests
+      let stagnantScrolls = 0;
+      const maxStagnantScrolls = 3; // Stop after 3 scrolls with no new images
+      
+      do {
+        previousCount = currentCount;
+        
+        // Scroll to bottom to trigger infinite scroll
+        // Try multiple scroll strategies to find the right scrollable element
+        await page.evaluate(() => {
+          // Strategy 1: Scroll the main window
+          window.scrollTo(0, document.body.scrollHeight);
+          
+          // Strategy 2: Try to find and scroll the gallery wrapper or its parent
+          const galleryWrapper = document.querySelector('.gallery-wrapper');
+          if (galleryWrapper) {
+            galleryWrapper.scrollTop = galleryWrapper.scrollHeight;
+          }
+          
+          // Strategy 3: Look for any scrollable container with overflow
+          const scrollableElements = Array.from(document.querySelectorAll('*')).filter(el => {
+            const style = window.getComputedStyle(el);
+            return style.overflowY === 'scroll' || style.overflowY === 'auto';
+          });
+          
+          scrollableElements.forEach(el => {
+            el.scrollTop = el.scrollHeight;
+          });
+          
+          // Strategy 4: Try scrolling the last image item into view to trigger loading
+          const imageItems = document.querySelectorAll('.image-item');
+          if (imageItems.length > 0) {
+            const lastItem = imageItems[imageItems.length - 1];
+            lastItem.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          }
+        });
+        
+        // Wait for new images to load and their URLs to populate
+        await page.waitForSelector('.image-item', { visible: true, timeout: 5000 });
+        
+        // Give extra time for lazy-loaded images to populate their src attributes
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Count current images
+        const currentElements = await page.$$('.image-item');
+        currentCount = currentElements.length;
+        
+        // Track how many scrolls have yielded no new images
+        if (currentCount === previousCount) {
+          stagnantScrolls++;
+        } else {
+          stagnantScrolls = 0; // Reset counter when we get new images
+        }
+        
+        debug('Scroll attempt %d: found %d images (was %d), stagnant scrolls: %d', 
+              scrollAttempts + 1, currentCount, previousCount, stagnantScrolls);
+        scrollAttempts++;
+        
+        // Keep scrolling until we hit max attempts or no new images for several attempts
+        // Don't stop just because we have "enough" - collect as many as possible
+      } while (scrollAttempts < maxScrollAttempts && stagnantScrolls < maxStagnantScrolls);
+      
+      debug('Finished scrolling after %d attempts, found %d total images (target was %d)', 
+            scrollAttempts, currentCount, maxImages);
+    }
+    
     const imageElements = await page.$$('.image-item');
     debug('Found %d image items', imageElements.length);
     
@@ -198,7 +279,6 @@ async function downloadRecentImages() {
       return { filename, timestamp: match ? match[1] : 'none', dateTime: img.dateTimeText };
     }));
     
-    const maxImages = parseInt(process.env.MOULTRIE_MAX_IMAGES) || 5;
     const imagesToDownload = sortedImages.slice(0, maxImages); // Get the newest images
     console.log(`Preparing to download ${imagesToDownload.length} images (max: ${maxImages})`);
 
