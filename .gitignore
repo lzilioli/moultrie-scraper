@@ -1,0 +1,14 @@
+# Environment variables
+.env
+
+# Node modules
+node_modules/
+
+# Downloaded images
+recent images/
+
+# Debug artifacts
+debug/
+
+# OS generated files
+.DS_Store
