@@ -60,7 +60,45 @@ Copy `.env.sample` to `.env` and configure the following:
 3. Import the following widget configuration (copy and paste into Pushcut):
 
 ```json
-{"type":"column","name":"ZLand Latest","properties":{"background":{"value":{"startPoint":{"x":0,"y":0},"type":"linear","colors":["rgba(13.92%, 19.02%, 15.49%, 1.00)","rgba(30.20%, 33.73%, 24.12%, 1.00)"],"endPoint":{"x":1,"y":1}},"type":"gradient","corners":null}},"children":[{"children":[{"value":{"aspectRatio":"fit","imageURL":"MoultrieLatest.jpeg"},"type":"image"}],"type":"column"}]}
+{
+  "type": "column",
+  "name": "ZLand Latest",
+  "properties": {
+    "background": {
+      "value": {
+        "startPoint": {
+          "x": 0,
+          "y": 0
+        },
+        "type": "linear",
+        "colors": [
+          "rgba(13.92%, 19.02%, 15.49%, 1.00)",
+          "rgba(30.20%, 33.73%, 24.12%, 1.00)"
+        ],
+        "endPoint": {
+          "x": 1,
+          "y": 1
+        }
+      },
+      "type": "gradient",
+      "corners": null
+    }
+  },
+  "children": [
+    {
+      "children": [
+        {
+          "value": {
+            "aspectRatio": "fit",
+            "imageURL": "MoultrieLatest.jpeg"
+          },
+          "type": "image"
+        }
+      ],
+      "type": "column"
+    }
+  ]
+}
 ```
 
 **Note:** If you change the `MOULTRIE_LATEST_IMAGE_NAME` environment variable, update the `imageURL` in the widget JSON to match.
