@@ -63,7 +63,7 @@ Copy `.env.sample` to `.env` and configure the following:
 ```json
 {
   "type": "column",
-  "name": "ZLand Latest",
+  "name": "Moultrie Latest",
   "properties": {
     "background": {
       "value": {
