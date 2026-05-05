@@ -12,3 +12,6 @@ debug/
 
 # OS generated files
 .DS_Store
+
+# Claude local
+.claude/*local*
