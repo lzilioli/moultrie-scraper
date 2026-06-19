@@ -10,10 +10,13 @@ const downloadRecentImages = require('./downloadRecentImages');
 const axios = require('axios');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.GALLERY_PORT || process.env.PORT || 59526;
 
 // Folder where images are saved
 const imagesFolder = path.resolve(__dirname, 'recent images');
+
+// Gallery page (zland.brainya.cc), loaded once at startup.
+const GALLERY_PAGE = fs.readFileSync(path.join(__dirname, 'gallery.html'), 'utf8');
 
 function getMimeType(filename) {
   const ext = path.extname(filename).toLowerCase();
@@ -153,6 +156,83 @@ app.get('/refresh', async (req, res) => {
   }
 });
 
+// ----------------------------------------------------------------------------
+// Gallery (zland.brainya.cc) — read-only browser for the downloaded assets.
+// ----------------------------------------------------------------------------
+
+// Return all image filenames, newest first. Filenames use the format
+// YYYY-MM-DD@HH:MM:SS.jpg, so a descending string sort is chronological.
+async function listImages() {
+  await fs.ensureDir(imagesFolder);
+  const files = await fs.readdir(imagesFolder);
+  return files
+    .filter(f => f.endsWith('.jpg') && !f.startsWith('.'))
+    .sort((a, b) => b.localeCompare(a));
+}
+
+// JSON list of every image, newest first.
+app.get('/api/images', async (req, res) => {
+  try {
+    const images = await listImages();
+    res.json({ count: images.length, images });
+  } catch (err) {
+    console.error('Error listing images:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Serve a single image. Guard against path traversal — only ever read a bare
+// filename out of the images folder.
+app.get('/img/:name', async (req, res) => {
+  const name = path.basename(req.params.name);
+  if (!name.endsWith('.jpg')) {
+    return res.status(400).send('Unsupported file type.');
+  }
+  const filePath = path.join(imagesFolder, name);
+  if (!(await fs.pathExists(filePath))) {
+    return res.status(404).send('Not found.');
+  }
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  fs.createReadStream(filePath).pipe(res);
+});
+
+// The single-page gallery UI.
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(GALLERY_PAGE);
+});
+
+// /.well-known/launcher — manifest consumed by the brainya.cc launcher. zland
+// exposes no nav links, just the 3 most recent images as card thumbnails. URLs
+// are relative; the launcher resolves them against this service's origin.
+app.get('/.well-known/launcher', async (req, res) => {
+  try {
+    const images = await listImages(); // newest first
+    const recent = images.slice(0, 3).map(name => {
+      const base = name.replace(/\.jpg$/, '');  // 2026-05-23@01:23:00
+      const d = new Date(base.replace('@', 'T'));
+      const node = {
+        url: '/img/' + encodeURIComponent(name),
+        href: '/#' + encodeURIComponent(name), // gallery page w/ lightbox (chrome), not the raw file
+        id: base,
+      };
+      if (!isNaN(d.getTime())) {
+        node.timestamp = d.getTime();
+        node.title = d.toLocaleString('en-US',
+          { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      } else {
+        node.title = base;
+      }
+      return node;
+    });
+    res.json({ service: { name: 'zland', kind: 'zland' }, images: recent });
+  } catch (err) {
+    console.error('Error building launcher manifest:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Endpoint to get the latest image
 app.get('/latest-image', async (req, res) => {
   try {
@@ -195,7 +275,9 @@ function scheduleImageDownloadJob() {
   }, 3600000);
 }
 
-// Wrapper function for downloadRecentImages with error handling
+// Wrapper for the hourly job: download recent images, then upload the latest to
+// Pushcut. Each step is guarded so a Pushcut failure never stops future runs and
+// a download failure skips the upload (rather than re-pushing a stale image).
 async function downloadRecentImagesWrapper() {
   try {
     console.log('Starting image download job...');
@@ -203,5 +285,13 @@ async function downloadRecentImagesWrapper() {
     console.log('Image download job completed.');
   } catch (error) {
     console.error('Error in image download job:', error);
+    return;
+  }
+
+  try {
+    const result = await uploadLatestImageToPushcut();
+    console.log(`Pushcut upload: ${result.message} (${result.filename})`);
+  } catch (error) {
+    console.error('Error uploading to Pushcut:', error.message);
   }
 }
